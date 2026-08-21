@@ -2,17 +2,20 @@
 //  Настройки подключения к Supabase.
 //
 //  Где взять эти две строчки:
-//    Supabase → твой проект → Settings (шестерёнка) → API
-//      Project URL  →  SUPABASE_URL
-//      anon public  →  SUPABASE_ANON_KEY
+//    Supabase → проект → Project Settings → API Keys
+//      API URL           →  SUPABASE_URL
+//      Publishable key   →  SUPABASE_ANON_KEY   (прежнее название — anon public)
 //
-//  Ключ anon публичный по замыслу: сам по себе он не даёт доступа к данным.
+//  Ключ публичный по замыслу: сам по себе он не даёт доступа к данным.
 //  Данные закрыты правилами внутри базы (см. supabase/schema.sql),
 //  поэтому этот файл спокойно лежит в открытом репозитории.
+//
+//  Сюда нельзя класть ключ service_role (он же Secret key) — он обходит
+//  все правила доступа. В приложении он не нужен.
 //
 //  Если оставить строки пустыми — приложение запустится в локальном режиме:
 //  всё работает, но база живёт только в этом браузере.
 // ============================================================================
 
-export const SUPABASE_URL = "";
-export const SUPABASE_ANON_KEY = "";
+export const SUPABASE_URL = "https://xfsiqsgnjoyvsnfosbim.supabase.co";
+export const SUPABASE_ANON_KEY = "sb_publishable_GfyRgXUgr-3t-bly4oAbxQ_jIe0mGvv";
