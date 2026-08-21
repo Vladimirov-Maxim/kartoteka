@@ -1249,7 +1249,7 @@ function renderCatPicker(){
     const on = ui.formCats.has(c);
     chip.type = "button";
     chip.setAttribute("aria-pressed", String(on));
-    if (on){ chip.style.background = catColor(c); chip.style.borderColor = catColor(c); chip.style.color = "#fff"; }
+    if (on){ chip.style.background = catColor(c); chip.style.borderColor = catColor(c); chip.style.color = "var(--on-bright)"; }
     chip.addEventListener("click", () => {
       ui.formCats.has(c) ? ui.formCats.delete(c) : ui.formCats.add(c);
       renderCatPicker();
