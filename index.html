@@ -156,8 +156,12 @@
       <span class="hintline">через запятую — по ним фильтруется рандом</span></label>
     <label class="field"><span class="label">Минут</span><input id="fMin" type="number" min="0" max="999" placeholder="30"></label>
   </div>
-  <label class="field"><span class="label">Состав</span><textarea id="fIng" placeholder="Спагетти 200 г&#10;Бекон 120 г&#10;Яичные желтки 3 шт"></textarea>
-    <span class="hintline">по одному ингредиенту в строке</span></label>
+  <div class="field"><span class="label">Состав</span>
+    <div class="ing-rows" id="fIngRows"></div>
+    <button type="button" class="ing-add" id="fIngAdd">+ добавить ингредиент</button>
+    <span class="hintline">количество и единица необязательны · свою единицу можно просто вписать · длинный список вставляй в поле названия — разложится по строкам сам</span>
+  </div>
+  <datalist id="unitList"></datalist>
   <label class="field"><span class="label">Как готовить</span><textarea id="fRec" style="min-height:170px" placeholder="1. Поставить воду…"></textarea></label>
   <p class="note" id="fStat"></p>
   <div class="sheet-actions">

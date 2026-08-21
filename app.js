@@ -19,6 +19,10 @@ const catColor  = c => `var(${CAT_VAR[c] || "--c-other"})`;
 const dishCats  = d => (d.categories && d.categories.length ? d.categories : ["Ужин"]);
 const dishColor = d => catColor(dishCats(d)[0]);
 
+// Единицы для выпадающего списка. Список не закрытый — своё тоже можно вписать.
+const UNITS = ["г","кг","мл","л","шт","ст. л.","ч. л.","стакан","щепотка",
+               "зубчик","пучок","банка","упак.","по вкусу"];
+
 const SEED = [
   {name:"Паста карбонара",categories:["Ужин"],tags:["быстро","мясное"],minutes:25,
    ingredients:["Спагетти 200 г","Гуанчиале или бекон 120 г","Яичные желтки 3 шт","Пекорино 50 г","Чёрный перец","Соль"],
@@ -94,6 +98,43 @@ function lastCookedText(dish){
   return `готовили ${y} ${plural(y,"год","года","лет")} назад`;
 }
 
+/* ------------------------------ состав блюда ------------------------------
+   Ингредиент — это {name, qty, unit}. Количество храним строкой, чтобы
+   можно было написать «1/2» или «2–3»: для показа этого достаточно, а для
+   будущего списка покупок число всегда можно вынуть.                        */
+
+// Разбирает старую запись одной строкой: «Спагетти 200 г» → три поля.
+// Число ищем последнее в строке, а хвост после него принимаем за единицу,
+// только если он похож на единицу: короткий и из букв. Иначе не трогаем.
+function parseIng(str){
+  const s = String(str).trim();
+  const m = s.match(/^(.*\S)\s+(\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?)\s*([а-яёa-z.\s]{0,12})$/i);
+  if (!m) return { name: s, qty: "", unit: "" };
+  return {
+    name: m[1].trim(),
+    qty:  m[2].replace(",", ".").replace(/\s+/g, ""),
+    unit: m[3].trim().replace(/\s+/g, " ")
+  };
+}
+
+function normIng(x){
+  if (x == null) return null;
+  if (typeof x === "string"){
+    const s = x.trim();
+    return s ? parseIng(s) : null;
+  }
+  const name = String(x.name ?? "").trim();
+  const qty  = String(x.qty  ?? "").trim();
+  const unit = String(x.unit ?? "").trim();
+  if (!name && !qty && !unit) return null;
+  return { name, qty, unit };
+}
+
+// «Спагетти 200 г», «Соль по вкусу», «Петрушка»
+const ingText = i => [i.name, i.qty, i.unit]
+  .map(v => (v == null ? "" : String(v).trim()))
+  .filter(Boolean).join(" ");
+
 function normalize(d){
   let cats = Array.isArray(d.categories) ? d.categories.filter(Boolean).map(String) : null;
   if (!cats || !cats.length) cats = [d.category || "Ужин"];
@@ -103,7 +144,7 @@ function normalize(d){
     categories: [...new Set(cats)],
     tags: Array.isArray(d.tags) ? d.tags.filter(Boolean).map(String) : [],
     minutes: Number(d.minutes) || 0,
-    ingredients: Array.isArray(d.ingredients) ? d.ingredients.filter(Boolean).map(String) : [],
+    ingredients: Array.isArray(d.ingredients) ? d.ingredients.map(normIng).filter(Boolean) : [],
     recipe: String(d.recipe || ""),
     deleted: !!d.deleted,
     updated: Number(d.updated) || Date.now(),
@@ -410,7 +451,7 @@ function matchesText(d, q){
   return d.name.toLowerCase().includes(q)
       || d.tags.some(t => t.toLowerCase().includes(q))
       || dishCats(d).some(c => c.toLowerCase().includes(q))
-      || d.ingredients.some(i => i.toLowerCase().includes(q));
+      || d.ingredients.some(i => ingText(i).toLowerCase().includes(q));
 }
 
 function filtered(){
@@ -489,7 +530,7 @@ function cardNode(dish, depth){
   ings.append(el("div","label","Состав"));
   const ul = el("ul");
   const shown = dish.ingredients.slice(0,7);
-  shown.forEach(i => ul.append(el("li", null, i)));
+  shown.forEach(i => ul.append(el("li", null, ingText(i))));
   if (dish.ingredients.length > shown.length)
     ul.append(el("li", null, `и ещё ${dish.ingredients.length - shown.length}`));
   if (!dish.ingredients.length) ul.append(el("li", null, "состав не записан"));
@@ -646,7 +687,8 @@ function openRecipe(dish, fromList){
   const p1 = el("div","panel");
   p1.append(el("div","label","Состав"));
   const ul = el("ul");
-  (dish.ingredients.length ? dish.ingredients : ["состав не записан"]).forEach(i => ul.append(el("li", null, i)));
+  (dish.ingredients.length ? dish.ingredients.map(ingText) : ["состав не записан"])
+    .forEach(t => ul.append(el("li", null, t)));
   p1.append(ul);
   s.append(p1);
 
@@ -736,6 +778,99 @@ function renderList(){
 
 /* ============================ форма блюда ============================ */
 
+/* ------------------------- состав: строки в форме ------------------------- */
+
+function ingRow(ing){
+  const row = el("div","ing-row");
+
+  const name = el("input","ing-name");
+  name.placeholder = "Ингредиент";
+  name.value = ing ? ing.name : "";
+
+  const qty = el("input","ing-qty");
+  qty.placeholder = "кол.";
+  qty.inputMode = "decimal";
+  qty.value = ing ? ing.qty : "";
+
+  const unit = el("input","ing-unit");
+  unit.placeholder = "ед.";
+  unit.setAttribute("list","unitList");
+  unit.value = ing ? ing.unit : "";
+
+  const del = el("button","ing-del","×");
+  del.type = "button";
+  del.title = "Убрать";
+  del.addEventListener("click", () => { row.remove(); ensureIngRow(); });
+
+  // Enter в названии — следующая строка, чтобы вбивать состав не отрываясь
+  name.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const next = row.nextElementSibling;
+    if (next) next.querySelector(".ing-name").focus();
+    else addIngRow().querySelector(".ing-name").focus();
+  });
+
+  // вставка нескольких строк разом раскладывается по отдельным ингредиентам
+  name.addEventListener("paste", e => {
+    const text = (e.clipboardData || window.clipboardData).getData("text") || "";
+    const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    if (lines.length < 2) return;
+    e.preventDefault();
+    const parsed = lines.map(parseIng);
+    const first = parsed.shift();
+    name.value = first.name;
+    qty.value = first.qty;
+    unit.value = first.unit;
+    let after = row;
+    parsed.forEach(p => { const r = ingRow(p); after.after(r); after = r; });
+    ensureIngRow();
+  });
+
+  row.append(name, qty, unit, del);
+  return row;
+}
+
+function addIngRow(ing){
+  const row = ingRow(ing);
+  $("fIngRows").append(row);
+  return row;
+}
+
+// в форме всегда есть куда писать
+function ensureIngRow(){
+  if (!$("fIngRows").querySelector(".ing-row")) addIngRow();
+}
+
+function renderIngRows(list){
+  const box = $("fIngRows");
+  box.textContent = "";
+  (list && list.length ? list : []).forEach(i => box.append(ingRow(i)));
+  ensureIngRow();
+}
+
+function readIngRows(){
+  return [...$("fIngRows").querySelectorAll(".ing-row")]
+    .map(r => normIng({
+      name: r.querySelector(".ing-name").value,
+      qty:  r.querySelector(".ing-qty").value,
+      unit: r.querySelector(".ing-unit").value
+    }))
+    .filter(Boolean);
+}
+
+function fillUnitList(){
+  const dl = $("unitList");
+  dl.textContent = "";
+  // к стандартным добавляем те единицы, которые уже встречаются в базе
+  const used = new Set(live().flatMap(d => d.ingredients.map(i => i.unit)).filter(Boolean));
+  [...new Set([...UNITS, ...used])].forEach(u => {
+    const o = document.createElement("option");
+    o.value = u;
+    dl.append(o);
+  });
+}
+
 function renderCatPicker(){
   const box = $("fCats");
   box.textContent = "";
@@ -763,7 +898,8 @@ function openSheet(dish){
   $("fName").value = dish ? dish.name : "";
   $("fMin").value  = dish && dish.minutes ? dish.minutes : "";
   $("fTags").value = dish ? dish.tags.join(", ") : "";
-  $("fIng").value  = dish ? dish.ingredients.join("\n") : "";
+  fillUnitList();
+  renderIngRows(dish ? dish.ingredients : []);
   $("fRec").value  = dish ? dish.recipe : "";
   $("fStat").textContent = "";
   if (dish){
@@ -832,6 +968,7 @@ $("staleDays").addEventListener("change", e => {
   if (ui.stale) rebuildDeck(); else renderFilters();
 });
 $("sheetClose").addEventListener("click", closeSheet);
+$("fIngAdd").addEventListener("click", () => addIngRow().querySelector(".ing-name").focus());
 
 $("fCatNew").addEventListener("keydown", e => {
   if (e.key !== "Enter") return;
@@ -852,7 +989,7 @@ $("fSave").addEventListener("click", () => {
     name, categories: cats,
     minutes: Number($("fMin").value) || 0,
     tags: $("fTags").value.split(",").map(s => s.trim()).filter(Boolean),
-    ingredients: $("fIng").value.split("\n").map(s => s.trim()).filter(Boolean),
+    ingredients: readIngRows(),
     recipe: $("fRec").value.trim()
   };
   let dish;

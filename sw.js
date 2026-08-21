@@ -2,7 +2,7 @@
    Кэшируем только свои файлы. Запросы к Supabase и к CDN не трогаем никогда —
    иначе можно показать устаревшие данные вместо свежих. */
 
-const CACHE = "kartoteka-v1";
+const CACHE = "kartoteka-v2";
 const SHELL = [
   "./",
   "./index.html",
@@ -31,23 +31,29 @@ self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   if (url.origin !== self.location.origin) return;   // Supabase и CDN — мимо кэша
 
-  // навигация: сначала сеть, чтобы после деплоя сразу увидеть новую версию
-  if (e.request.mode === "navigate"){
+  // no-cache — чтобы обойти собственный кэш браузера: GitHub Pages отдаёт
+  // файлы с запасом на десять минут, и без этого свежая выкладка приезжает не сразу.
+  const fresh = (req, revalidate) => fetch(req, revalidate ? { cache: "no-cache" } : undefined)
+    .then(r => {
+      if (r && r.ok) caches.open(CACHE).then(c => c.put(req, r.clone()));
+      return r;
+    });
+
+  // Разметка, стили, логика — всегда сначала из сети, кэш только как запасной
+  // вариант офлайн. Иначе после выкладки можно поймать смесь версий:
+  // новый index.html со старым styles.css, и вёрстка разъезжается.
+  const code = e.request.mode === "navigate" || /\.(html|css|js|webmanifest)$/.test(url.pathname);
+  if (code){
     e.respondWith(
-      fetch(e.request)
-        .then(r => { caches.open(CACHE).then(c => c.put(e.request, r.clone())); return r; })
-        .catch(() => caches.match("./index.html"))
+      fresh(e.request, true).catch(() =>
+        caches.match(e.request).then(hit => hit || caches.match("./index.html")))
     );
     return;
   }
 
-  // остальное: отдаём из кэша сразу, в фоне подтягиваем свежее
+  // Картинки и иконки меняются редко — их отдаём из кэша сразу,
+  // а свежие подтягиваем в фоне.
   e.respondWith(
-    caches.match(e.request).then(hit => {
-      const net = fetch(e.request)
-        .then(r => { caches.open(CACHE).then(c => c.put(e.request, r.clone())); return r; })
-        .catch(() => hit);
-      return hit || net;
-    })
+    caches.match(e.request).then(hit => hit || fresh(e.request))
   );
 });
