@@ -48,7 +48,8 @@ input,textarea,select{font:inherit;color:inherit}
 .app > main{flex:1;min-height:0;display:flex;flex-direction:column}
 .app > main > section{flex:1;min-height:0;display:flex;flex-direction:column}
 #screen-deck{overflow:hidden}
-#screen-recipe,#screen-list{overflow-y:auto;overscroll-behavior:contain}
+#screen-recipe,#screen-list,#screen-shop{overflow-y:auto;overscroll-behavior:contain;
+  padding-bottom:8px}
 .searchrow{display:flex;gap:8px;margin-bottom:8px}
 .deck-search{flex:1;margin:0;padding:9px 13px}
 .reshuffle-btn{flex:none;width:44px;border:1px solid var(--line);border-radius:10px;
@@ -172,6 +173,7 @@ kbd{font-family:"JetBrains Mono",monospace;font-size:11px;background:var(--surfa
 .recipe-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
 .recipe-actions .act{flex:1 1 140px}
 .act.ghost{background:var(--surface);border:1px solid var(--line);color:var(--ink-2)}
+.act.buy{background:var(--accent-soft);border:1px solid var(--accent);color:var(--accent)}
 
 /* ---------- список блюд ---------- */
 .list-head{display:flex;align-items:center;gap:10px;padding-bottom:12px}
@@ -207,6 +209,48 @@ kbd{font-family:"JetBrains Mono",monospace;font-size:11px;background:var(--surfa
 .field textarea{line-height:1.55;min-height:110px}
 .field .hintline{display:block;font-size:11.5px;line-height:1.4;color:var(--ink-3);margin-top:6px}
 .two{display:grid;grid-template-columns:1fr 110px;gap:10px}
+/* ============================== покупки ============================== */
+.shop-add{display:grid;grid-template-columns:1fr 54px 88px 40px;gap:6px;align-items:center;
+  margin-bottom:12px}
+.shop-add input{width:100%;min-width:0;background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;padding:10px;font-size:14.5px}
+.shop-add .ing-qty{text-align:center;padding-left:4px;padding-right:4px;
+  font-family:"JetBrains Mono",monospace;font-size:13.5px}
+.shop-add .ing-unit{padding-left:8px;padding-right:4px;font-size:13.5px}
+.shop-plus{background:var(--accent);color:var(--accent-ink);border-radius:10px;
+  font-size:20px;line-height:1;height:100%;min-height:40px}
+.shop-plus:active{transform:scale(.94)}
+
+.shop-meta{font-size:12px;color:var(--ink-3);font-family:"JetBrains Mono",monospace;
+  padding-bottom:8px}
+.shop-list{display:grid;gap:6px;padding-bottom:12px}
+.shop-item{display:flex;align-items:flex-start;gap:11px;background:var(--surface);
+  border:1px solid var(--line);border-radius:11px;padding:11px 13px;text-align:left;width:100%}
+.shop-item .box{flex:none;width:20px;height:20px;border-radius:6px;border:2px solid var(--line);
+  margin-top:1px;display:flex;align-items:center;justify-content:center;
+  font-size:13px;color:transparent;transition:background .12s,border-color .12s}
+.shop-item[data-done="true"] .box{background:var(--accent);border-color:var(--accent);color:#fff}
+.shop-item[data-done="true"] .nm{text-decoration:line-through;color:var(--ink-3)}
+.shop-item[data-done="true"] .qty{color:var(--ink-3)}
+.shop-item .txt{flex:1;min-width:0}
+.shop-item .nm{font-weight:600;font-size:15px;letter-spacing:-.01em}
+.shop-item .qty{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--ink-2);margin-top:2px}
+.shop-item .src{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+.shop-item .kill{flex:none;color:var(--ink-3);font-size:18px;line-height:1;padding:2px 4px}
+.shop-item .kill:hover{color:var(--hot)}
+.shop-empty{text-align:center;color:var(--ink-3);font-size:14px;padding:34px 20px;line-height:1.55}
+
+.pick-row{display:flex;align-items:center;gap:11px;background:var(--surface);
+  border:1px solid var(--line);border-radius:11px;padding:11px 13px;width:100%;text-align:left}
+.pick-row .box{flex:none;width:20px;height:20px;border-radius:6px;border:2px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:13px;color:transparent}
+.pick-row[aria-pressed="true"] .box{background:var(--accent);border-color:var(--accent);color:#fff}
+.pick-row .nm{font-weight:600;font-size:15px}
+.pick-row .sub{font-size:12px;color:var(--ink-3);margin-top:2px}
+
+.tab-badge{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--hot);
+  margin-left:6px;transform:translateY(-6px)}
+
 /* строки состава: название · количество · единица · убрать */
 .ing-rows{display:grid;gap:6px}
 .ing-row{display:grid;grid-template-columns:1fr 54px 88px 26px;gap:6px;align-items:center}

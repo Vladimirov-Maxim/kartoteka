@@ -131,13 +131,51 @@
       </div>
       <p class="note" id="storageNote"></p>
     </section>
+
+    <!-- ===== покупки ===== -->
+    <section id="screen-shop" hidden>
+      <div class="list-head">
+        <h2>Покупки</h2>
+        <button class="btn-add" id="shopFromDish">+ Из блюда</button>
+      </div>
+
+      <div class="shop-add">
+        <input class="ing-name" id="shopName" placeholder="Свой продукт">
+        <input class="ing-qty"  id="shopQty"  placeholder="кол." inputmode="decimal">
+        <input class="ing-unit" id="shopUnit" placeholder="ед." list="unitList">
+        <button class="shop-plus" id="shopAdd" title="Добавить">+</button>
+      </div>
+
+      <div class="shop-meta"><span id="shopCount"></span></div>
+      <div class="shop-list" id="shopList"></div>
+
+      <div class="tools" id="shopTools" hidden>
+        <button class="tool" id="shopClearDone">Убрать купленное</button>
+        <button class="tool danger" id="shopClearAll">Очистить список</button>
+      </div>
+    </section>
   </main>
 
   <nav class="tabbar" id="tabbar">
     <button data-go="deck" aria-current="true"><b></b>Колода</button>
     <button data-go="list" aria-current="false">Блюда</button>
+    <button data-go="shop" aria-current="false">Покупки<i class="tab-badge" id="shopBadge" hidden></i></button>
   </nav>
 </div>
+
+<!-- ====================== выбор блюд для покупок ====================== -->
+<div class="sheet" id="pickSheet" hidden><div class="sheet-inner">
+  <div class="sheet-head">
+    <h2>Что готовим?</h2>
+    <button class="tool" id="pickClose" style="margin-left:auto">Закрыть</button>
+  </div>
+  <p class="note" style="padding-top:0">Отметь блюда — их состав сложится в один список продуктов.</p>
+  <input class="search" id="pickSearch" type="search" placeholder="Поиск по названию">
+  <div class="rows" id="pickRows"></div>
+  <div class="sheet-actions">
+    <button class="act save" id="pickAdd">Добавить в список</button>
+  </div>
+</div></div>
 
 <!-- ============================ форма блюда ============================ -->
 <div class="sheet" id="sheet" hidden><div class="sheet-inner">

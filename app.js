@@ -135,6 +135,41 @@ const ingText = i => [i.name, i.qty, i.unit]
   .map(v => (v == null ? "" : String(v).trim()))
   .filter(Boolean).join(" ");
 
+/* ----------------------------- список покупок -----------------------------
+   Строка списка = продукт с количеством в одной единице. Одинаковые продукты
+   в одинаковых единицах складываются, в разных — остаются рядом:
+   морковь «1 шт» и «500 г» сложить нельзя, не зная веса морковки.          */
+
+function normShop(x){
+  if (!x) return null;
+  const name = String(x.name ?? "").trim();
+  if (!name) return null;
+  return {
+    id: x.id || uid(),
+    name,
+    qty: String(x.qty ?? "").trim(),
+    unit: String(x.unit ?? "").trim(),
+    sources: Array.isArray(x.sources) ? x.sources.filter(Boolean).map(String) : [],
+    checked: !!x.checked
+  };
+}
+
+const shopKey = it => it.name.trim().toLowerCase() + "\u0000" + it.unit.trim().toLowerCase();
+
+// «2» + «3» = «5»; «2» + «по вкусу» = «2 + по вкусу»
+function addQty(a, b){
+  a = String(a || "").trim();
+  b = String(b || "").trim();
+  if (!a) return b;
+  if (!b) return a;
+  const na = Number(a.replace(",", ".")), nb = Number(b.replace(",", "."));
+  if (Number.isFinite(na) && Number.isFinite(nb)){
+    const sum = na + nb;
+    return String(Math.round(sum * 1000) / 1000);
+  }
+  return a + " + " + b;
+}
+
 function normalize(d){
   let cats = Array.isArray(d.categories) ? d.categories.filter(Boolean).map(String) : null;
   if (!cats || !cats.length) cats = [d.category || "Ужин"];
@@ -164,6 +199,7 @@ let channel = null;
 
 const DB   = { dishes: [] };
 let cookLog = [];           // {id, dish_id, user_id, cooked_on}
+let shopping = [];          // {id, name, qty, unit, sources[], checked}
 let queue  = [];            // неотправленные операции
 let flushTimer = null, flushing = false;
 
@@ -192,7 +228,7 @@ const QUEUE_KEY = () => cacheKey() + ":queue";
 
 function saveCache(){
   try {
-    localStorage.setItem(cacheKey(), JSON.stringify({ dishes: DB.dishes, cookLog }));
+    localStorage.setItem(cacheKey(), JSON.stringify({ dishes: DB.dishes, cookLog, shopping }));
     localStorage.setItem(QUEUE_KEY(), JSON.stringify(queue));
   } catch(e){ /* приватный режим или переполнение — не критично */ }
 }
@@ -204,9 +240,10 @@ function loadCache(){
       const j = JSON.parse(raw);
       DB.dishes = (j.dishes || []).map(normalize);
       cookLog = j.cookLog || [];
+      shopping = (j.shopping || []).map(normShop).filter(Boolean);
     }
     queue = JSON.parse(localStorage.getItem(QUEUE_KEY()) || "[]");
-  } catch(e){ DB.dishes = []; cookLog = []; queue = []; }
+  } catch(e){ DB.dishes = []; cookLog = []; shopping = []; queue = []; }
 }
 
 /* ======================= пересчёт истории готовки ======================= */
@@ -231,6 +268,16 @@ const rowToDish = r => normalize({
   id: r.id, name: r.name, categories: r.categories, tags: r.tags,
   minutes: r.minutes, ingredients: r.ingredients, recipe: r.recipe,
   deleted: r.deleted, updated: Date.parse(r.updated_at) || Date.now()
+});
+
+const rowToShop = r => normShop({
+  id: r.id, name: r.name, qty: r.qty, unit: r.unit,
+  sources: r.sources, checked: r.checked
+});
+
+const shopToRow = it => ({
+  id: it.id, kitchen_id: kitchen.id, name: it.name,
+  qty: it.qty, unit: it.unit, sources: it.sources, checked: it.checked
 });
 
 const dishToRow = d => ({
@@ -266,6 +313,7 @@ function refreshSync(){
 function enqueue(op){
   // одна операция на блюдо — незачем слать промежуточные состояния
   if (op.kind === "dish") queue = queue.filter(q => !(q.kind === "dish" && q.id === op.id));
+  if (op.kind === "shop") queue = queue.filter(q => !(q.kind === "shop" && q.id === op.id));
   queue.push(op);
   saveCache();
   refreshSync();
@@ -294,6 +342,15 @@ async function flush(){
       } else if (op.kind === "uncook"){
         const { error } = await sb.from("cook_log").delete().eq("dish_id", op.dishId);
         if (error) throw error;
+      } else if (op.kind === "shop"){
+        const it = shopping.find(x => x.id === op.id);
+        if (it){
+          const { error } = await sb.from("shopping_items").upsert(shopToRow(it));
+          if (error) throw error;
+        }
+      } else if (op.kind === "shopdel"){
+        const { error } = await sb.from("shopping_items").delete().in("id", op.ids);
+        if (error) throw error;
       }
       queue.shift();
       saveCache();
@@ -308,12 +365,15 @@ async function flush(){
 }
 
 async function pullAll(){
-  const [{ data: dRows, error: e1 }, { data: cRows, error: e2 }] = await Promise.all([
-    sb.from("dishes").select("*").eq("kitchen_id", kitchen.id),
-    sb.from("cook_log").select("*").eq("kitchen_id", kitchen.id)
-  ]);
+  const [{ data: dRows, error: e1 }, { data: cRows, error: e2 }, { data: sRows, error: e3 }] =
+    await Promise.all([
+      sb.from("dishes").select("*").eq("kitchen_id", kitchen.id),
+      sb.from("cook_log").select("*").eq("kitchen_id", kitchen.id),
+      sb.from("shopping_items").select("*").eq("kitchen_id", kitchen.id)
+    ]);
   if (e1) throw e1;
   if (e2) throw e2;
+  if (e3) throw e3;
 
   // сервер — источник правды, но локальные неотправленные правки не теряем
   const pendingIds = new Set(queue.filter(q => q.kind === "dish").map(q => q.id));
@@ -323,6 +383,14 @@ async function pullAll(){
     DB.dishes.push(local.get(id));
 
   cookLog = cRows.map(r => ({ id: r.id, dish_id: r.dish_id, user_id: r.user_id, cooked_on: r.cooked_on }));
+
+  const shopPending = new Set(queue.filter(q => q.kind === "shop").map(q => q.id));
+  const shopLocal = new Map(shopping.map(i => [i.id, i]));
+  shopping = (sRows || []).map(rowToShop).filter(Boolean)
+    .map(i => shopPending.has(i.id) ? shopLocal.get(i.id) : i);
+  for (const id of shopPending) if (!shopping.find(i => i.id === id) && shopLocal.get(id))
+    shopping.push(shopLocal.get(id));
+
   recomputeCookStats();
   saveCache();
 }
@@ -351,12 +419,27 @@ function subscribe(){
             cookLog.push({ id: p.new.id, dish_id: p.new.dish_id, user_id: p.new.user_id, cooked_on: p.new.cooked_on });
           recomputeCookStats(); saveCache(); rerender();
         })
+    .on("postgres_changes",
+        { event: "*", schema: "public", table: "shopping_items", filter: "kitchen_id=eq." + kitchen.id },
+        p => {
+          if (p.eventType === "DELETE") shopping = shopping.filter(i => i.id !== p.old.id);
+          else {
+            const inc = rowToShop(p.new);
+            if (!inc) return;
+            const i = shopping.findIndex(x => x.id === inc.id);
+            if (i === -1) shopping.push(inc);
+            else if (!queue.some(q => q.kind === "shop" && q.id === inc.id)) shopping[i] = inc;
+          }
+          saveCache(); rerender();
+        })
     .subscribe();
 }
 
 function rerender(){
   updateCount();
   if (ui.screen === "list") renderList();
+  if (ui.screen === "shop") renderShopping();
+  updateShopBadge();
   if (ui.screen === "deck" && ui.current){
     const fresh = DB.dishes.find(d => d.id === ui.current.id && !d.deleted);
     if (!fresh) { nextCard(); return; }
@@ -721,11 +804,21 @@ function openRecipe(dish, fromList){
     if (ui.fromList){ renderList(); show("list"); }
     else { ui.keepCurrent = false; nextCard(); show("deck"); }
   });
+  const buy = el("button","act buy","В покупки");
+  buy.addEventListener("click", () => {
+    if (!dish.ingredients.length){ toast("У блюда не записан состав"); return; }
+    dish.ingredients.forEach(i => addToShopping(i, dish.name));
+    renderShopping();
+    toast(`Состав «${dish.name}» — в списке покупок`);
+    if (ui.fromList){ show("list"); }
+    else { ui.keepCurrent = false; nextCard(); show("deck"); }
+  });
+
   const edit = el("button","act ghost","Изменить");
   edit.addEventListener("click", () => openSheet(dish));
   const later = el("button","act ghost", ui.fromList ? "Назад" : "Не сегодня");
   later.addEventListener("click", () => backFromRecipe());
-  acts.append(cook, edit, later);
+  acts.append(cook, buy, edit, later);
   s.append(acts);
 
   show("recipe");
@@ -774,6 +867,179 @@ function renderList(){
   $("storageNote").textContent = mode === "cloud"
     ? `${n} ${plural(n,"блюдо","блюда","блюд")} · кухня «${kitchen.name}» · база общая, изменения видны обоим сразу`
     : `${n} ${plural(n,"блюдо","блюда","блюд")} · база хранится только в этом браузере — скачай её, если чистишь историю`;
+}
+
+/* ============================ экран: покупки ============================ */
+
+function shopChanged(item){
+  saveCache();
+  if (mode === "cloud") enqueue({ kind: "shop", id: item.id });
+  else refreshSync();
+}
+
+function shopRemoved(ids){
+  saveCache();
+  if (mode === "cloud" && ids.length) enqueue({ kind: "shopdel", ids });
+  else refreshSync();
+}
+
+// Вливает продукт в список: тот же продукт в той же единице — складываем,
+// в другой единице — отдельной строкой.
+function addToShopping(ing, source){
+  const inc = normShop(ing);
+  if (!inc) return null;
+  const same = shopping.find(i => shopKey(i) === shopKey(inc));
+  if (same){
+    same.qty = addQty(same.qty, inc.qty);
+    same.checked = false;                       // добавили ещё — значит снова надо купить
+    if (source && !same.sources.includes(source)) same.sources.push(source);
+    shopChanged(same);
+    return same;
+  }
+  const item = normShop({ ...inc, id: uid(), sources: source ? [source] : [], checked: false });
+  shopping.push(item);
+  shopChanged(item);
+  return item;
+}
+
+// Для показа: строки одного продукта в разных единицах идут одной карточкой.
+function shopGroups(){
+  const map = new Map();
+  for (const it of shopping){
+    const k = it.name.trim().toLowerCase();
+    if (!map.has(k)) map.set(k, { name: it.name, items: [] });
+    map.get(k).items.push(it);
+  }
+  return [...map.values()]
+    .map(g => ({
+      ...g,
+      done: g.items.every(i => i.checked),
+      qty: g.items.map(i => [i.qty, i.unit].filter(Boolean).join(" ")).filter(Boolean).join(" + "),
+      sources: [...new Set(g.items.flatMap(i => i.sources))]
+    }))
+    .sort((a, b) => (a.done - b.done) || a.name.localeCompare(b.name, "ru"));
+}
+
+function updateShopBadge(){
+  const left = shopGroups().filter(g => !g.done).length;
+  const badge = $("shopBadge");
+  if (badge) badge.hidden = left === 0;
+}
+
+function renderShopping(){
+  const box = $("shopList");
+  box.textContent = "";
+  const groups = shopGroups();
+
+  // считаем видимые пункты, а не внутренние строки: морковь «1 шт + 500 г» — один пункт
+  const total = groups.length;
+  const done = groups.filter(g => g.done).length;
+  $("shopCount").textContent = total ? `куплено ${done} из ${total}` : "";
+  $("shopTools").hidden = total === 0;
+  updateShopBadge();
+
+  if (!groups.length){
+    const e = el("div","shop-empty");
+    e.append(el("div", null, "Список пуст."));
+    e.append(el("div", null, "Нажми «Из блюда» — состав выбранных блюд сложится сюда. Или впиши продукт вручную полем выше."));
+    box.append(e);
+    return;
+  }
+
+  groups.forEach(g => {
+    const row = el("div","shop-item");
+    row.dataset.done = String(g.done);
+
+    const tick = el("button","box","✓");
+    tick.type = "button";
+    tick.setAttribute("aria-label", g.done ? "Вернуть в список" : "Отметить купленным");
+
+    const txt = el("div","txt");
+    txt.append(el("div","nm", g.name));
+    if (g.qty) txt.append(el("div","qty", g.qty));
+    if (g.sources.length) txt.append(el("div","src", g.sources.join(" · ")));
+
+    const kill = el("button","kill","×");
+    kill.type = "button";
+    kill.title = "Убрать из списка";
+
+    const toggle = () => {
+      const next = !g.done;
+      g.items.forEach(i => { i.checked = next; shopChanged(i); });
+      renderShopping();
+    };
+    tick.addEventListener("click", toggle);
+    txt.addEventListener("click", toggle);
+
+    kill.addEventListener("click", e => {
+      e.stopPropagation();
+      const ids = g.items.map(i => i.id);
+      shopping = shopping.filter(i => !ids.includes(i.id));
+      shopRemoved(ids);
+      renderShopping();
+    });
+
+    row.append(tick, txt, kill);
+    box.append(row);
+  });
+}
+
+function addCustomShopItem(){
+  const name = $("shopName").value.trim();
+  if (!name){ $("shopName").focus(); return; }
+  addToShopping({ name, qty: $("shopQty").value, unit: $("shopUnit").value }, null);
+  $("shopName").value = $("shopQty").value = $("shopUnit").value = "";
+  $("shopName").focus();
+  renderShopping();
+}
+
+/* ---------------------- выбор блюд для списка покупок ---------------------- */
+
+let pickSelected = new Set();
+
+function renderPick(){
+  const box = $("pickRows");
+  box.textContent = "";
+  const q = $("pickSearch").value.trim().toLowerCase();
+  let items = live().slice().sort((a,b) => a.name.localeCompare(b.name,"ru"));
+  if (q) items = items.filter(d => matchesText(d, q));
+  if (!items.length){
+    box.append(el("p","note","Ничего не нашлось."));
+    return;
+  }
+  items.forEach(d => {
+    const row = el("button","pick-row");
+    row.type = "button";
+    row.setAttribute("aria-pressed", String(pickSelected.has(d.id)));
+    row.append(el("span","box","✓"));
+    const t = el("div","txt");
+    t.append(el("div","nm", d.name));
+    const n = d.ingredients.length;
+    t.append(el("div","sub", n ? `${n} ${plural(n,"ингредиент","ингредиента","ингредиентов")}` : "состав не записан"));
+    row.append(t);
+    row.addEventListener("click", () => {
+      pickSelected.has(d.id) ? pickSelected.delete(d.id) : pickSelected.add(d.id);
+      row.setAttribute("aria-pressed", String(pickSelected.has(d.id)));
+      $("pickAdd").textContent = pickSelected.size
+        ? `Добавить в список (${pickSelected.size})` : "Добавить в список";
+    });
+    box.append(row);
+  });
+}
+
+function openPick(){
+  pickSelected = new Set();
+  $("pickSearch").value = "";
+  $("pickAdd").textContent = "Добавить в список";
+  fillUnitList();
+  renderPick();
+  $("pickSheet").hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closePick(){
+  $("pickSheet").hidden = true;
+  document.body.style.overflow = "";
 }
 
 /* ============================ форма блюда ============================ */
@@ -941,6 +1207,7 @@ function show(screen){
   $("screen-deck").hidden   = screen !== "deck";
   $("screen-recipe").hidden = screen !== "recipe";
   $("screen-list").hidden   = screen !== "list";
+  $("screen-shop").hidden   = screen !== "shop";
   document.querySelectorAll(".tabbar button").forEach(b =>
     b.setAttribute("aria-current", String(b.dataset.go === screen || (screen === "recipe" && b.dataset.go === "deck"))));
   try { window.scrollTo(0, 0); } catch(e){}
@@ -952,9 +1219,10 @@ $("tabbar").addEventListener("click", e => {
   const b = e.target.closest("button[data-go]");
   if (!b) return;
   show(b.dataset.go);
-  if (b.dataset.go === "list"){
-    try { renderList(); } catch(err){ console.error(err); }
-  }
+  try {
+    if (b.dataset.go === "list") renderList();
+    if (b.dataset.go === "shop"){ fillUnitList(); renderShopping(); }
+  } catch(err){ console.error(err); }
 });
 $("deckSearch").addEventListener("input", e => { ui.q = e.target.value; rebuildDeck(); });
 $("btnSkip").addEventListener("click", () => swipe(-1));
@@ -967,6 +1235,45 @@ $("staleDays").addEventListener("change", e => {
   ui.staleDays = Math.max(1, Math.min(365, Number(e.target.value) || 7));
   if (ui.stale) rebuildDeck(); else renderFilters();
 });
+$("shopAdd").addEventListener("click", addCustomShopItem);
+["shopName","shopQty","shopUnit"].forEach(id =>
+  $(id).addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); addCustomShopItem(); } }));
+
+$("shopFromDish").addEventListener("click", openPick);
+$("pickClose").addEventListener("click", closePick);
+$("pickSearch").addEventListener("input", renderPick);
+$("pickAdd").addEventListener("click", () => {
+  const names = [];
+  let added = 0;
+  pickSelected.forEach(id => {
+    const d = DB.dishes.find(x => x.id === id);
+    if (!d) return;
+    names.push(d.name);
+    d.ingredients.forEach(i => { if (addToShopping(i, d.name)) added++; });
+  });
+  closePick();
+  renderShopping();
+  toast(added ? "Добавлено: " + names.join(", ")
+              : "В выбранных блюдах не записан состав");
+});
+
+$("shopClearDone").addEventListener("click", () => {
+  const ids = shopping.filter(i => i.checked).map(i => i.id);
+  if (!ids.length){ toast("Купленного пока нет"); return; }
+  shopping = shopping.filter(i => !i.checked);
+  shopRemoved(ids);
+  renderShopping();
+});
+
+$("shopClearAll").addEventListener("click", () => {
+  if (!shopping.length) return;
+  const ids = shopping.map(i => i.id);
+  shopping = [];
+  shopRemoved(ids);
+  renderShopping();
+  toast("Список очищен");
+});
+
 $("sheetClose").addEventListener("click", closeSheet);
 $("fIngAdd").addEventListener("click", () => addIngRow().querySelector(".ing-name").focus());
 
@@ -1080,6 +1387,7 @@ $("copyCode").addEventListener("click", async () => {
 });
 
 document.addEventListener("keydown", e => {
+  if ($("pickSheet").hidden === false){ if (e.key === "Escape") closePick(); return; }
   if ($("sheet").hidden === false){ if (e.key === "Escape") closeSheet(); return; }
   if (ui.screen === "recipe" && e.key === "Escape") backFromRecipe();
   if (ui.screen !== "deck") return;
@@ -1207,7 +1515,7 @@ function startLocal(){
   recomputeCookStats();
   saveCache();
   refreshSync();
-  rebuildDeck(); renderList(); show("deck");
+  rebuildDeck(); renderList(); renderShopping(); show("deck");
 }
 
 async function useKitchen(k){
@@ -1227,7 +1535,7 @@ async function useKitchen(k){
   gate.hide();
   refreshSync();
   if (queue.length) flush();
-  rebuildDeck(); renderList(); show("deck");
+  rebuildDeck(); renderList(); renderShopping(); show("deck");
 }
 
 async function afterSignIn(){
