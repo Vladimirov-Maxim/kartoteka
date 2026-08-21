@@ -142,7 +142,7 @@
       <div class="shop-add">
         <input class="ing-name" id="shopName" placeholder="Свой продукт">
         <input class="ing-qty"  id="shopQty"  placeholder="кол." inputmode="decimal">
-        <input class="ing-unit" id="shopUnit" placeholder="ед." list="unitList">
+        <span class="unit-wrap" id="shopUnitWrap"></span>
         <button class="shop-plus" id="shopAdd" title="Добавить">+</button>
       </div>
 
@@ -199,7 +199,7 @@
     <button type="button" class="ing-add" id="fIngAdd">+ добавить ингредиент</button>
     <span class="hintline">количество и единица необязательны · свою единицу можно просто вписать · длинный список вставляй в поле названия — разложится по строкам сам</span>
   </div>
-  <datalist id="unitList"></datalist>
+
   <label class="field"><span class="label">Как готовить</span><textarea id="fRec" style="min-height:170px" placeholder="1. Поставить воду…"></textarea></label>
   <p class="note" id="fStat"></p>
   <div class="sheet-actions">

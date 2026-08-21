@@ -402,12 +402,19 @@ function subscribe(){
         { event: "*", schema: "public", table: "dishes", filter: "kitchen_id=eq." + kitchen.id },
         p => {
           if (p.eventType === "DELETE"){
+            if (!DB.dishes.some(d => d.id === p.old.id)) return;
             DB.dishes = DB.dishes.filter(d => d.id !== p.old.id);
           } else {
             const incoming = rowToDish(p.new);
             const i = DB.dishes.findIndex(d => d.id === incoming.id);
             if (i === -1) DB.dishes.push(incoming);
-            else if (!queue.some(q => q.kind === "dish" && q.id === incoming.id)) DB.dishes[i] = incoming;
+            else if (queue.some(q => q.kind === "dish" && q.id === incoming.id)) return;
+            else {
+              const { history, updated, ...a } = DB.dishes[i];
+              const { history: h2, updated: u2, ...bb } = incoming;
+              if (JSON.stringify(a) === JSON.stringify(bb)) return;   // эхо своей же записи
+              DB.dishes[i] = incoming;
+            }
           }
           recomputeCookStats(); saveCache(); rerender();
         })
@@ -422,23 +429,48 @@ function subscribe(){
     .on("postgres_changes",
         { event: "*", schema: "public", table: "shopping_items", filter: "kitchen_id=eq." + kitchen.id },
         p => {
-          if (p.eventType === "DELETE") shopping = shopping.filter(i => i.id !== p.old.id);
-          else {
+          if (p.eventType === "DELETE"){
+            if (!shopping.some(i => i.id === p.old.id)) return;   // уже удалили у себя
+            shopping = shopping.filter(i => i.id !== p.old.id);
+          } else {
             const inc = rowToShop(p.new);
             if (!inc) return;
             const i = shopping.findIndex(x => x.id === inc.id);
             if (i === -1) shopping.push(inc);
-            else if (!queue.some(q => q.kind === "shop" && q.id === inc.id)) shopping[i] = inc;
+            else if (queue.some(q => q.kind === "shop" && q.id === inc.id)) return;  // своё, ещё не отправленное
+            else if (JSON.stringify(shopping[i]) === JSON.stringify(inc)) return;    // эхо своей же записи
+            else shopping[i] = inc;
           }
           saveCache(); rerender();
         })
     .subscribe();
 }
 
+let lastPull = 0;
+
+// minGap — насколько свежими данными довольствуемся. Осознанное действие
+// (открыл вкладку покупок, вернулась сеть) заслуживает более свежих, чем
+// фоновое возвращение к вкладке.
+async function refreshFromServer(minGap = 3000){
+  if (mode !== "cloud" || !sb || !kitchen) return;
+  if (!navigator.onLine) return;
+  if (Date.now() - lastPull < minGap) return;
+  lastPull = Date.now();
+  try {
+    await pullAll();
+    rerender();
+  } catch(err){
+    console.warn("не удалось перечитать базу:", err);
+  }
+}
+
 function rerender(){
   updateCount();
   if (ui.screen === "list") renderList();
-  if (ui.screen === "shop") renderShopping();
+  if (ui.screen === "shop"){
+    if (shopResortTimer) updateShopCounts();    // человек сейчас отмечает — не трогаем список
+    else renderShopping();
+  }
   updateShopBadge();
   if (ui.screen === "deck" && ui.current){
     const fresh = DB.dishes.find(d => d.id === ui.current.id && !d.deleted);
@@ -926,17 +958,35 @@ function updateShopBadge(){
   if (badge) badge.hidden = left === 0;
 }
 
-function renderShopping(){
-  const box = $("shopList");
-  box.textContent = "";
+// Счётчик и значок можно обновить, не трогая сам список.
+function updateShopCounts(){
   const groups = shopGroups();
-
   // считаем видимые пункты, а не внутренние строки: морковь «1 шт + 500 г» — один пункт
   const total = groups.length;
   const done = groups.filter(g => g.done).length;
   $("shopCount").textContent = total ? `куплено ${done} из ${total}` : "";
   $("shopTools").hidden = total === 0;
   updateShopBadge();
+}
+
+// Купленное уезжает вниз не сразу, а когда человек перестал отмечать.
+// Перестраивать список под пальцем нельзя: браузер тогда теряет следующий клик.
+let shopResortTimer = null;
+function scheduleShopResort(){
+  clearTimeout(shopResortTimer);
+  shopResortTimer = setTimeout(() => {
+    shopResortTimer = null;
+    if (ui.screen === "shop") renderShopping();
+  }, 1400);
+}
+
+function renderShopping(){
+  clearTimeout(shopResortTimer);
+  shopResortTimer = null;
+  const box = $("shopList");
+  box.textContent = "";
+  const groups = shopGroups();
+  updateShopCounts();
 
   if (!groups.length){
     const e = el("div","shop-empty");
@@ -965,8 +1015,12 @@ function renderShopping(){
 
     const toggle = () => {
       const next = !g.done;
+      g.done = next;
       g.items.forEach(i => { i.checked = next; shopChanged(i); });
-      renderShopping();
+      row.dataset.done = String(next);          // меняем строку на месте
+      tick.setAttribute("aria-label", next ? "Вернуть в список" : "Отметить купленным");
+      updateShopCounts();
+      scheduleShopResort();                     // а порядок поправим, когда отпустишь
     };
     tick.addEventListener("click", toggle);
     txt.addEventListener("click", toggle);
@@ -987,8 +1041,10 @@ function renderShopping(){
 function addCustomShopItem(){
   const name = $("shopName").value.trim();
   if (!name){ $("shopName").focus(); return; }
-  addToShopping({ name, qty: $("shopQty").value, unit: $("shopUnit").value }, null);
-  $("shopName").value = $("shopQty").value = $("shopUnit").value = "";
+  addToShopping({ name, qty: $("shopQty").value,
+                  unit: unitValue($("shopUnitWrap").querySelector(".ing-unit")) }, null);
+  $("shopName").value = $("shopQty").value = "";
+  resetShopUnit();
   $("shopName").focus();
   renderShopping();
 }
@@ -1058,10 +1114,7 @@ function ingRow(ing){
   qty.inputMode = "decimal";
   qty.value = ing ? ing.qty : "";
 
-  const unit = el("input","ing-unit");
-  unit.placeholder = "ед.";
-  unit.setAttribute("list","unitList");
-  unit.value = ing ? ing.unit : "";
+  const unit = unitField(ing ? ing.unit : "");
 
   const del = el("button","ing-del","×");
   del.type = "button";
@@ -1087,7 +1140,8 @@ function ingRow(ing){
     const first = parsed.shift();
     name.value = first.name;
     qty.value = first.qty;
-    unit.value = first.unit;
+    unit.textContent = "";
+    unit.append(...unitField(first.unit).childNodes);
     let after = row;
     parsed.forEach(p => { const r = ingRow(p); after.after(r); after = r; });
     ensureIngRow();
@@ -1115,27 +1169,76 @@ function renderIngRows(list){
   ensureIngRow();
 }
 
+// «своя…» — служебный пункт, значением он быть не может
+const unitValue = elm => {
+  const v = elm ? elm.value : "";
+  return v === CUSTOM_UNIT ? "" : v;
+};
+
 function readIngRows(){
   return [...$("fIngRows").querySelectorAll(".ing-row")]
     .map(r => normIng({
       name: r.querySelector(".ing-name").value,
       qty:  r.querySelector(".ing-qty").value,
-      unit: r.querySelector(".ing-unit").value
+      unit: unitValue(r.querySelector(".ing-unit"))
     }))
     .filter(Boolean);
 }
 
-function fillUnitList(){
-  const dl = $("unitList");
-  dl.textContent = "";
-  // к стандартным добавляем те единицы, которые уже встречаются в базе
-  const used = new Set(live().flatMap(d => d.ingredients.map(i => i.unit)).filter(Boolean));
-  [...new Set([...UNITS, ...used])].forEach(u => {
-    const o = document.createElement("option");
-    o.value = u;
-    dl.append(o);
-  });
+const CUSTOM_UNIT = "\u0001своя";
+
+// Все известные единицы: стандартные плюс те, что уже встречаются в базе.
+function knownUnits(){
+  const used = new Set([
+    ...live().flatMap(d => d.ingredients.map(i => i.unit)),
+    ...shopping.map(i => i.unit)
+  ].filter(Boolean));
+  return [...new Set([...UNITS, ...used])];
 }
+
+// Поле единицы: выпадающий список с пунктом «своя…», который превращается
+// в обычный ввод. Возвращает обёртку; читать значение — у .ing-unit внутри.
+function unitField(value){
+  const wrap = el("span","unit-wrap");
+
+  const asInput = () => {
+    wrap.textContent = "";
+    const inp = el("input","ing-unit");
+    inp.placeholder = "ед.";
+    inp.autocomplete = "off";
+    const done = () => asSelect(inp.value.trim());
+    inp.addEventListener("blur", done);
+    inp.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === "Escape"){ e.preventDefault(); done(); }
+    });
+    wrap.append(inp);
+    inp.focus();
+  };
+
+  const asSelect = (val) => {
+    wrap.textContent = "";
+    const sel = el("select","ing-unit");
+    const opt = (v, t) => { const o = document.createElement("option"); o.value = v; o.textContent = t; return o; };
+    sel.append(opt("", "ед."));
+    [...new Set([...knownUnits(), ...(val ? [val] : [])])].forEach(u => sel.append(opt(u, u)));
+    sel.append(opt(CUSTOM_UNIT, "своя…"));
+    sel.value = val || "";
+    sel.addEventListener("change", () => { if (sel.value === CUSTOM_UNIT) asInput(); });
+    wrap.append(sel);
+  };
+
+  asSelect(value || "");
+  return wrap;
+}
+
+// Поле единицы в форме «свой продукт» на экране покупок
+function resetShopUnit(){
+  const box = $("shopUnitWrap");
+  box.textContent = "";
+  box.append(unitField(""));
+}
+
+function fillUnitList(){ resetShopUnit(); }
 
 function renderCatPicker(){
   const box = $("fCats");
@@ -1221,7 +1324,7 @@ $("tabbar").addEventListener("click", e => {
   show(b.dataset.go);
   try {
     if (b.dataset.go === "list") renderList();
-    if (b.dataset.go === "shop"){ fillUnitList(); renderShopping(); }
+    if (b.dataset.go === "shop"){ fillUnitList(); renderShopping(); refreshFromServer(800); }
   } catch(err){ console.error(err); }
 });
 $("deckSearch").addEventListener("input", e => { ui.q = e.target.value; rebuildDeck(); });
@@ -1236,7 +1339,7 @@ $("staleDays").addEventListener("change", e => {
   if (ui.stale) rebuildDeck(); else renderFilters();
 });
 $("shopAdd").addEventListener("click", addCustomShopItem);
-["shopName","shopQty","shopUnit"].forEach(id =>
+["shopName","shopQty"].forEach(id =>
   $(id).addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); addCustomShopItem(); } }));
 
 $("shopFromDish").addEventListener("click", openPick);
@@ -1395,7 +1498,11 @@ document.addEventListener("keydown", e => {
   if (e.key === "ArrowRight") swipe(1);
 });
 
-window.addEventListener("online",  () => { refreshSync(); flush(); });
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden){ flush(); refreshFromServer(); }
+});
+window.addEventListener("focus", () => refreshFromServer());
+window.addEventListener("online",  () => { refreshSync(); flush(); refreshFromServer(0); });
 window.addEventListener("offline", () => refreshSync());
 
 /* ============================= вход и кухня ============================= */
@@ -1531,6 +1638,7 @@ async function useKitchen(k){
   } catch(err){
     console.warn("не удалось загрузить из базы:", err);
   }
+  lastPull = Date.now();
   subscribe();
   gate.hide();
   refreshSync();
