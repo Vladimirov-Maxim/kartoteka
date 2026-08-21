@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>Кухонная картотека</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ======================= вход и выбор кухни ======================= -->
+<div class="gate" id="gate" hidden>
+  <div class="gate-box">
+    <div class="mark"><i></i>Кухонная картотека</div>
+
+    <!-- вход / регистрация -->
+    <section id="gate-auth" hidden>
+      <h1 id="authTitle">Вход</h1>
+      <p class="lead" id="authLead">Почта и пароль нужны только для того, чтобы вы с напарником видели один и тот же список блюд.</p>
+      <label class="field"><span class="label">Почта</span>
+        <input id="authEmail" type="email" autocomplete="email" placeholder="you@mail.ru"></label>
+      <label class="field"><span class="label">Пароль</span>
+        <input id="authPass" type="password" autocomplete="current-password" placeholder="не короче 6 символов"></label>
+      <button class="act save" id="authGo">Войти</button>
+      <div class="switcher">
+        <span id="authSwitchText">Ещё нет аккаунта?</span>
+        <button id="authSwitch">Зарегистрироваться</button>
+      </div>
+      <div class="err" id="authErr" hidden></div>
+      <div class="ok" id="authOk" hidden></div>
+      <p class="foot">Без входа приложение тоже работает —
+        <button id="goOffline">открыть без синхронизации</button>.
+        Тогда база живёт только в этом браузере.</p>
+    </section>
+
+    <!-- создать кухню или войти по коду -->
+    <section id="gate-kitchen" hidden>
+      <h1>Ваша кухня</h1>
+      <p class="lead">Кухня — это общий список блюд. Создай свою или подключись к чужой по коду приглашения.</p>
+      <label class="field"><span class="label">Название кухни</span>
+        <input id="kitchenName" placeholder="Наша кухня"></label>
+      <button class="act save" id="kitchenCreate">Создать кухню</button>
+      <div class="divider">или</div>
+      <label class="field"><span class="label">Код приглашения</span>
+        <input id="kitchenCode" class="code-input" maxlength="6" placeholder="ABC123"></label>
+      <button class="act ghost" id="kitchenJoin">Подключиться</button>
+      <div class="err" id="kitchenErr" hidden></div>
+      <p class="foot">Вошёл не тем аккаунтом? <button id="signOut1">Выйти</button></p>
+    </section>
+
+    <!-- загрузка -->
+    <section id="gate-loading" hidden>
+      <h1>Минутку</h1>
+      <p class="lead" id="loadingText">Подключаюсь к базе…</p>
+    </section>
+  </div>
+</div>
+
+<!-- ============================ приложение ============================ -->
+<div class="app">
+  <header class="topbar">
+    <div class="mark"><i></i>Кухонная картотека</div>
+    <div class="sync" id="sync" data-state="local"><b></b><span id="syncText">загружаю…</span></div>
+  </header>
+
+  <main>
+    <!-- ===== колода ===== -->
+    <section id="screen-deck">
+      <div class="filters">
+        <div class="searchrow">
+          <input class="search deck-search" id="deckSearch" type="search"
+                 placeholder="Искать по названию, тегу или составу">
+          <button class="reshuffle-btn" id="reshuffle" title="Перемешать колоду" aria-label="Перемешать колоду">↻</button>
+        </div>
+        <div class="chips" id="catChips"></div>
+        <div class="chips" id="tagChips" hidden></div>
+        <div class="filter-meta">
+          <span class="count" id="count"></span>
+          <span class="stale-wrap">
+            <button class="stale" id="staleToggle" data-on="false" aria-pressed="false">
+              <span class="switch"></span>
+              <span>не готовил дольше</span>
+            </button>
+            <input type="number" id="staleDays" min="1" max="365" value="7" aria-label="дней">
+            <span>дней</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="stage" id="stage"></div>
+
+      <div class="actions">
+        <button class="act skip" id="btnSkip">← Дальше</button>
+        <button class="act cook" id="btnCook">Готовлю →</button>
+      </div>
+      <p class="hint">Тяни карточку пальцем, тапни — посмотреть рецепт · <kbd>←</kbd> <kbd>→</kbd> на клавиатуре</p>
+    </section>
+
+    <!-- ===== рецепт ===== -->
+    <section id="screen-recipe" class="recipe" hidden></section>
+
+    <!-- ===== список ===== -->
+    <section id="screen-list" hidden>
+      <div class="list-head">
+        <h2>Мои блюда</h2>
+        <button class="btn-add" id="btnAdd">+ Добавить</button>
+      </div>
+      <input class="search" id="search" type="search" placeholder="Поиск по названию, составу или тегу">
+      <div class="rows" id="rows"></div>
+      <div class="invite" id="invite" hidden>
+        <span class="label">Код приглашения</span>
+        <div class="code" id="inviteCode">------</div>
+        <div class="row2">
+          <button class="tool" id="copyCode">Скопировать</button>
+          <button class="tool" id="signOut2">Выйти из аккаунта</button>
+        </div>
+        <p>Дай этот код тому, с кем ведёшь картотеку. Он зарегистрируется, введёт код — и вы в одном списке.</p>
+      </div>
+      <div class="tools">
+        <button class="tool" id="btnExport">Скачать базу</button>
+        <button class="tool" id="btnImport">Загрузить базу</button>
+        <button class="tool" id="btnSeed">Добавить примеры</button>
+        <input type="file" id="fileInput" accept="application/json,.json" hidden>
+      </div>
+      <p class="note" id="storageNote"></p>
+    </section>
+  </main>
+
+  <nav class="tabbar" id="tabbar">
+    <button data-go="deck" aria-current="true"><b></b>Колода</button>
+    <button data-go="list" aria-current="false">Блюда</button>
+  </nav>
+</div>
+
+<!-- ============================ форма блюда ============================ -->
+<div class="sheet" id="sheet" hidden><div class="sheet-inner">
+  <div class="sheet-head">
+    <h2 id="sheetTitle">Новое блюдо</h2>
+    <button class="tool" id="sheetClose" style="margin-left:auto">Закрыть</button>
+  </div>
+  <label class="field"><span class="label">Название</span><input id="fName" placeholder="Например, паста карбонара"></label>
+  <div class="field"><span class="label">Категории</span>
+    <div class="chips catpick" id="fCats"></div>
+    <input id="fCatNew" class="catnew" placeholder="+ своя категория, затем Enter">
+    <span class="hintline">можно выбрать несколько — например, и обед, и ужин</span>
+  </div>
+  <div class="two">
+    <label class="field"><span class="label">Теги</span><input id="fTags" placeholder="быстро, мясное, на компанию"></label>
+    <label class="field"><span class="label">Минут</span><input id="fMin" type="number" min="0" max="999" placeholder="30"></label>
+  </div>
+  <span class="hintline" style="display:block;margin-top:-8px">теги — через запятую, по ним фильтруется рандом</span>
+  <label class="field"><span class="label">Состав</span><textarea id="fIng" placeholder="Спагетти 200 г&#10;Бекон 120 г&#10;Яичные желтки 3 шт"></textarea>
+    <span class="hintline">по одному ингредиенту в строке</span></label>
+  <label class="field"><span class="label">Как готовить</span><textarea id="fRec" style="min-height:170px" placeholder="1. Поставить воду…"></textarea></label>
+  <p class="note" id="fStat"></p>
+  <div class="sheet-actions">
+    <button class="act save" id="fSave">Сохранить</button>
+    <button class="act ghost" id="fDelete">Удалить</button>
+  </div>
+</div></div>
+
+<div class="toasts" id="toasts"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,278 @@
+/* ---------- токены: светлая тема на голом :root ---------- */
+:root{
+  --paper:#FFFFFF;
+  --surface:#FFFFFF;
+  --surface-2:#F3F6F2;
+  --ink:#13201A;
+  --ink-2:#4B5D55;
+  --ink-3:#7E9089;
+  --line:#DDE4DB;
+  --line-soft:#EBF0E9;
+  --accent:#1F6F5C;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#DDEAE4;
+  --hot:#C74628;
+  --hot-soft:#F7E2DA;
+  --rule:rgba(19,32,26,.055);
+  --shadow-1:0 1px 2px rgba(19,32,26,.07);
+  --shadow-2:0 2px 6px rgba(19,32,26,.07), 0 18px 40px -18px rgba(19,32,26,.35);
+  --c-zavtrak:#C68A16;
+  --c-obed:#1F6F5C;
+  --c-uzhin:#3B5EA6;
+  --c-perekus:#1E8698;
+  --c-desert:#B23A62;
+  --c-napitok:#6C8A2A;
+  --c-other:#6B7A73;
+  color-scheme:light;
+}
+/* Приложение намеренно всегда светлое — белый фон в любой теме системы. */
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"Golos Text","Segoe UI",system-ui,-apple-system,sans-serif;
+  font-size:16px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;               /* страница целиком в экран, скроллят только внутренности */
+}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+.app{max-width:560px;margin:0 auto;padding:0 16px;height:100dvh;max-height:100dvh;
+  display:flex;flex-direction:column;overflow:hidden}
+.app > main{flex:1;min-height:0;display:flex;flex-direction:column}
+.app > main > section{flex:1;min-height:0;display:flex;flex-direction:column}
+#screen-deck{overflow:hidden}
+#screen-recipe,#screen-list{overflow-y:auto;overscroll-behavior:contain}
+.searchrow{display:flex;gap:8px;margin-bottom:8px}
+.deck-search{flex:1;margin:0;padding:9px 13px}
+.reshuffle-btn{flex:none;width:44px;border:1px solid var(--line);border-radius:10px;
+  background:var(--surface);color:var(--ink-2);font-size:18px;line-height:1;transition:color .12s,border-color .12s}
+.reshuffle-btn:hover{color:var(--accent);border-color:var(--accent)}
+.reshuffle-btn:active{transform:scale(.94)}
+
+/* ---------- шапка ---------- */
+.topbar{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:12px 2px 8px}
+.mark{font-family:"Unbounded",sans-serif;font-weight:600;font-size:15px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.mark i{width:9px;height:9px;border-radius:2px;background:var(--accent);display:block;transform:rotate(45deg)}
+
+/* ---------- нижняя навигация ---------- */
+.tabbar{position:sticky;bottom:0;z-index:40;display:flex;gap:8px;background:var(--paper);
+  border-top:1px solid var(--line-soft);margin:0 -16px;padding:8px 16px calc(10px + env(safe-area-inset-bottom,0px))}
+.tabbar button{flex:1;padding:13px 10px;border-radius:12px;font-size:14px;font-weight:600;color:var(--ink-3);
+  background:var(--surface-2);border:1px solid transparent;display:flex;align-items:center;justify-content:center;gap:8px}
+.tabbar button[aria-current="true"]{background:var(--surface);color:var(--ink);border-color:var(--line);box-shadow:var(--shadow-1)}
+.tabbar button b{width:7px;height:7px;border-radius:2px;background:currentColor;transform:rotate(45deg);opacity:.55}
+
+.sync{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-3);font-family:"JetBrains Mono",monospace;margin-left:auto}
+.sync b{width:6px;height:6px;border-radius:50%;background:var(--ink-3);display:block;flex:none}
+.sync[data-state="saved"] b{background:var(--accent)}
+.sync[data-state="saving"] b{background:var(--c-zavtrak);animation:pulse 1s ease-in-out infinite}
+.sync[data-state="local"] b{background:var(--c-other)}
+@keyframes pulse{50%{opacity:.25}}
+
+/* ---------- фильтры ---------- */
+.filters{padding-bottom:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:4px}
+.chip{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);
+  font-size:13px;font-weight:500;color:var(--ink-2);white-space:nowrap;transition:background .12s,color .12s,border-color .12s}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip.tag[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.chip.more{border-style:dashed;color:var(--ink-3)}
+.chip.more[data-open="true"],.chip.more[data-active="true"]{border-style:solid;border-color:var(--accent);color:var(--accent)}
+.chip.clear{border-color:transparent;color:var(--ink-3);text-decoration:underline;text-underline-offset:3px}
+#tagChips{padding:2px 0 8px}
+.filter-meta{display:flex;align-items:center;flex-wrap:wrap;gap:10px;row-gap:6px;
+  font-size:12px;color:var(--ink-3);padding-top:4px}
+.filter-meta .count{font-family:"JetBrains Mono",monospace}
+.linkbtn{font-size:12px;font-weight:600;color:var(--accent);text-decoration:underline;text-underline-offset:3px;margin-left:auto}
+.stale-wrap{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.stale{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-3)}
+.stale-wrap input[type=number]{width:46px;min-width:46px;background:var(--surface);border:1px solid var(--line);
+  border-radius:6px;padding:3px 4px;text-align:center;font-family:"JetBrains Mono",monospace;font-size:12px}
+.switch{width:32px;height:18px;border-radius:999px;background:var(--line);position:relative;transition:background .15s;flex:none}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--surface);transition:transform .15s}
+.stale[data-on="true"] .switch{background:var(--accent)}
+.stale[data-on="true"] .switch::after{transform:translateX(14px)}
+
+/* ---------- колода ---------- */
+.stage{position:relative;flex:1;min-height:200px;display:flex;align-items:center;justify-content:center;margin:4px 0 12px}
+.card{
+  position:absolute;inset:0;background:var(--surface);border:1px solid var(--line);border-radius:18px;
+  box-shadow:var(--shadow-2);overflow:hidden;display:flex;flex-direction:column;
+  touch-action:pan-y;user-select:none;-webkit-user-select:none;will-change:transform;
+}
+.card[data-depth="1"]{transform:translateY(10px) scale(.965);box-shadow:var(--shadow-1);z-index:2}
+.card[data-depth="2"]{transform:translateY(20px) scale(.93);box-shadow:var(--shadow-1);z-index:1}
+.card[data-depth="0"]{z-index:3;cursor:grab}
+.card[data-depth="0"]:active{cursor:grabbing}
+.card.settle{transition:transform .32s cubic-bezier(.2,.8,.3,1)}
+.card.gone{transition:transform .34s cubic-bezier(.4,0,.9,.5),opacity .34s ease}
+
+.card-tab{height:6px;background:var(--c-other)}
+.card-body{padding:20px 22px 18px;display:flex;flex-direction:column;flex:1;min-height:0}
+.card h2{font-family:"Unbounded",sans-serif;font-weight:600;font-size:clamp(20px,5.4vw,25px);
+  line-height:1.18;letter-spacing:-.025em;margin:0;text-wrap:balance}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.pill{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;letter-spacing:.01em}
+.pill.cat{color:#fff}
+.pill.time{background:var(--surface-2);color:var(--ink-2);font-family:"JetBrains Mono",monospace;border:1px solid var(--line-soft)}
+.pill.tag{background:transparent;color:var(--ink-3);border:1px solid var(--line);font-weight:500}
+.label{font-family:"Unbounded",sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-3)}
+.ings{margin:14px -22px 0;padding:12px 22px 4px;flex:1;min-height:0;overflow:hidden;
+  background:repeating-linear-gradient(to bottom,transparent 0 27px,var(--rule) 27px 28px);
+  border-top:1px solid var(--line-soft);
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent 100%)}
+.ings ul{list-style:none;margin:6px 0 0;padding:0}
+.ings li{font-size:14.5px;line-height:28px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ings li::before{content:"·";color:var(--accent);font-weight:700;margin-right:8px}
+.card-foot{padding-top:12px;font-size:12px;color:var(--ink-3);font-family:"JetBrains Mono",monospace;
+  border-top:1px solid var(--line-soft);margin-top:auto}
+
+.stamp{position:absolute;top:22px;font-family:"Unbounded",sans-serif;font-weight:800;font-size:20px;
+  letter-spacing:.04em;padding:5px 12px;border:3px solid;border-radius:8px;opacity:0;pointer-events:none;z-index:5}
+.stamp.cook{left:20px;transform:rotate(-13deg);color:var(--hot);border-color:var(--hot);background:var(--hot-soft)}
+.stamp.skip{right:20px;transform:rotate(13deg);color:var(--ink-3);border-color:var(--ink-3);background:var(--surface-2)}
+
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;gap:10px;padding:24px;border:1px dashed var(--line);border-radius:18px;background:var(--surface-2)}
+.empty h3{font-family:"Unbounded",sans-serif;font-weight:600;font-size:17px;margin:0;letter-spacing:-.02em}
+.empty p{margin:0;color:var(--ink-3);font-size:14px;max-width:32ch}
+
+/* ---------- кнопки под колодой ---------- */
+.actions{display:flex;gap:10px;padding-bottom:6px}
+.act{flex:1;padding:14px 10px;border-radius:14px;font-weight:600;font-size:15px;
+  display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .1s, filter .12s}
+.act:active{transform:scale(.975)}
+.act[disabled]{opacity:.4;pointer-events:none}
+.act.skip{background:var(--surface);border:1px solid var(--line);color:var(--ink-2)}
+.act.cook{background:var(--hot);color:#fff;box-shadow:var(--shadow-1)}
+.hint{text-align:center;font-size:12px;color:var(--ink-3);padding:2px 0 6px;margin:0}
+kbd{font-family:"JetBrains Mono",monospace;font-size:11px;background:var(--surface);border:1px solid var(--line);
+  border-bottom-width:2px;border-radius:5px;padding:1px 5px}
+
+/* ---------- рецепт ---------- */
+.recipe{padding-bottom:24px}
+.back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3);font-weight:500;padding:6px 0 12px}
+.recipe h2{font-family:"Unbounded",sans-serif;font-weight:600;font-size:clamp(23px,6.5vw,30px);
+  line-height:1.14;letter-spacing:-.03em;margin:0;text-wrap:balance}
+.recipe .stat{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--ink-3);margin-top:10px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:16px}
+.panel ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:7px}
+.panel li{font-size:15px;color:var(--ink-2);display:flex;gap:10px;align-items:baseline}
+.panel li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent);flex:none;transform:translateY(-2px)}
+.steps{white-space:pre-wrap;font-size:15.5px;line-height:1.65;color:var(--ink-2);margin-top:8px}
+.recipe-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.recipe-actions .act{flex:1 1 140px}
+.act.ghost{background:var(--surface);border:1px solid var(--line);color:var(--ink-2)}
+
+/* ---------- список блюд ---------- */
+.list-head{display:flex;align-items:center;gap:10px;padding-bottom:12px}
+.list-head h2{font-family:"Unbounded",sans-serif;font-weight:600;font-size:20px;margin:0;letter-spacing:-.025em}
+.btn-add{margin-left:auto;background:var(--accent);color:var(--accent-ink);padding:9px 15px;border-radius:10px;
+  font-size:13.5px;font-weight:600}
+.search{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 14px;
+  font-size:15px;margin-bottom:12px}
+.search::placeholder{color:var(--ink-3)}
+.rows{display:grid;gap:8px;padding-bottom:16px}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 15px;
+  display:flex;gap:12px;align-items:center;text-align:left;width:100%}
+.row .bar{width:3px;align-self:stretch;border-radius:2px;background:var(--c-other);flex:none}
+.row .txt{flex:1;min-width:0}
+.row .nm{font-weight:600;font-size:15.5px;letter-spacing:-.01em}
+.row .sub{font-size:12px;color:var(--ink-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .go{color:var(--ink-3);font-size:18px;flex:none}
+.tools{display:flex;gap:8px;flex-wrap:wrap;padding:14px 0 28px;border-top:1px solid var(--line-soft);margin-top:8px}
+.tool{font-size:12.5px;font-weight:500;color:var(--ink-2);background:var(--surface);border:1px solid var(--line);
+  border-radius:9px;padding:8px 12px}
+.tool.danger{color:var(--hot)}
+.note{font-size:12px;color:var(--ink-3);padding-top:10px;line-height:1.5}
+
+/* ---------- форма ---------- */
+.sheet{position:fixed;inset:0;background:var(--paper);z-index:60;overflow-y:auto;padding:0 16px 40px}
+.sheet-inner{max-width:560px;margin:0 auto}
+.sheet h2{font-family:"Unbounded",sans-serif;font-weight:600;font-size:20px;margin:0;letter-spacing:-.025em}
+.sheet-head{display:flex;align-items:center;gap:10px;position:sticky;top:0;background:var(--paper);padding:16px 0 12px;z-index:2}
+.field{display:block;margin-top:14px}
+.field .label{display:block;margin-bottom:6px}
+.field input,.field textarea,.field select{width:100%;background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;padding:11px 13px;font-size:15px;resize:vertical}
+.field textarea{line-height:1.55;min-height:110px}
+.field .hintline{font-size:11.5px;color:var(--ink-3);margin-top:5px}
+.two{display:grid;grid-template-columns:1fr 110px;gap:10px}
+.catpick{padding:2px 0 8px}
+.catpick .chip{cursor:pointer}
+.catnew{width:100%;background:var(--surface);border:1px dashed var(--line);border-radius:10px;
+  padding:9px 13px;font-size:14px}
+.sheet-actions{display:flex;gap:10px;margin-top:22px}
+.sheet-actions .act{flex:1}
+.act.save{background:var(--accent);color:var(--accent-ink)}
+
+/* ---------- тост ---------- */
+.toasts{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:80;display:grid;gap:8px;
+  width:calc(100% - 32px);max-width:400px;pointer-events:none}
+.toast{background:var(--ink);color:var(--paper);border-radius:11px;padding:11px 15px;font-size:13.5px;
+  font-weight:500;box-shadow:var(--shadow-2);animation:rise .25s ease}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+/* на невысоких экранах убираем всё необязательное, лишь бы карточка не сжималась */
+@media (max-height:760px){
+  .hint{display:none}
+  .topbar{padding:10px 2px 6px}
+  .mark{font-size:14px}
+}
+@media (max-height:700px){
+  .card h2{font-size:20px}
+  .card-body{padding:15px 20px 13px}
+  .ings{margin-top:10px;padding-top:9px}
+  .act{padding:12px 10px}
+}
+[hidden]{display:none !important}
+
+/* ============================ вход и выбор кухни ============================ */
+.gate{position:fixed;inset:0;z-index:70;background:var(--paper);display:flex;
+  align-items:center;justify-content:center;padding:24px;overflow-y:auto}
+.gate-box{width:100%;max-width:400px}
+.gate .mark{margin-bottom:22px}
+.gate h1{font-family:"Unbounded",sans-serif;font-weight:600;font-size:24px;letter-spacing:-.03em;
+  margin:0 0 6px;text-wrap:balance}
+.gate p.lead{margin:0 0 20px;color:var(--ink-2);font-size:14.5px;line-height:1.55}
+.gate .field{margin-top:12px}
+.gate .act{width:100%;margin-top:16px}
+.gate .switcher{margin-top:16px;text-align:center;font-size:13px;color:var(--ink-3)}
+.gate .switcher button{color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.gate .err{margin-top:14px;background:var(--hot-soft);color:var(--hot);border-radius:10px;
+  padding:11px 14px;font-size:13.5px;line-height:1.45}
+.gate .ok{margin-top:14px;background:var(--accent-soft);color:var(--accent);border-radius:10px;
+  padding:11px 14px;font-size:13.5px;line-height:1.45}
+.gate .divider{display:flex;align-items:center;gap:12px;margin:22px 0 4px;color:var(--ink-3);font-size:12px}
+.gate .divider::before,.gate .divider::after{content:"";flex:1;height:1px;background:var(--line)}
+.gate .foot{margin-top:22px;font-size:12px;color:var(--ink-3);text-align:center;line-height:1.5}
+.gate .foot button{color:var(--ink-3);text-decoration:underline;text-underline-offset:3px}
+.code-input{text-transform:uppercase;letter-spacing:.22em;font-family:"JetBrains Mono",monospace;
+  text-align:center;font-size:19px !important}
+
+/* код приглашения в списке блюд */
+.invite{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;
+  padding:14px 16px;margin-bottom:12px}
+.invite .label{display:block;margin-bottom:6px}
+.invite .code{font-family:"JetBrains Mono",monospace;font-size:22px;font-weight:500;
+  letter-spacing:.2em;color:var(--ink)}
+.invite .row2{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.invite p{margin:8px 0 0;font-size:12px;color:var(--ink-3);line-height:1.5}
+
+/* кто готовил — маленькая история на экране рецепта */
+.history{margin-top:8px;display:grid;gap:6px}
+.history div{font-size:13px;color:var(--ink-2);display:flex;gap:10px;
+  font-family:"JetBrains Mono",monospace}
+.history span{color:var(--ink-3)}
